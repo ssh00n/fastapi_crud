@@ -1,9 +1,10 @@
 from fastapi import FastAPI
-import routers.users
+from routers import users, boards
 
 app = FastAPI()
 
-app.include_router(routers.users.router)
+app.include_router(users.router)
+app.include_router(boards.router)
 
 
 @app.get("/")

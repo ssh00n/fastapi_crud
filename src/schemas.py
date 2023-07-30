@@ -1,23 +1,28 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List
+from models import Post
+import datetime
 
 
 # User Schema
-class UserBase(BaseModel):
-    fullname: str
-    email: str
+class UserBaseSchema(BaseModel):
+    fullname: str = Field(..., min_length=4, max_length=30)
+    email: EmailStr = Field(..., max_length=50)
 
 
-class UserCreate(UserBase):
-    password: str
+class UserCreateSchema(UserBaseSchema):
+    password: str = Field(..., min_length=4, max_length=30)
 
 
-class User(UserBase):
+class UserSchema(UserBaseSchema):
     id: int
     is_logged_in: bool
 
     class Config:
         orm_mode = True
+        the_schema = {
+            "user_demo": {"name": "demo", "email": "demo@demo.com", "password": "demo"}
+        }
 
     """
     orm_mode -> True ?
@@ -27,12 +32,15 @@ class User(UserBase):
     """
 
 
-class UserLoginForm(BaseModel):
-    email: EmailStr
-    password: str
+class UserLoginSchema(BaseModel):
+    email: EmailStr = Field(...)
+    password: str = Field(...)
+
+    class Config:
+        the_schema = {"user_demo": {"email": "demo@demo.com", "password": "demo"}}
 
 
-class UserInDB(User):
+class UserInDBSchema(UserSchema):
     hashed_password: str
 
 
@@ -40,43 +48,43 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-
-class TokenData(BaseModel):
-    fullname: str | None = None
+    # Post Schema
 
 
-# Board Schema
-class BoardBase(BaseModel):
-    name: str
-    is_public: bool = True
+class PostBaseSchema(BaseModel):
+    title: str
+    content: str
 
 
-class BoardCreate(BoardBase):
+class PostCreateSchema(PostBaseSchema):
     pass
 
 
-class Board(BoardBase):
-    id: int
-    creator_id: int
+class PostSchema(PostBaseSchema):
+    post_id: int
+    author_id: int
+    board_id: int
+    created_at: Optional[datetime.datetime]
 
     class Config:
         orm_mode = True
 
 
-# Post Schema
-class PostBase(BaseModel):
-    title: str
-    content: str
+# Board Schema
+class BoardBaseSchema(BaseModel):
+    name: str
+    is_public: bool = True
 
 
-class PostCreate(PostBase):
+class BoardCreateSchema(BoardBaseSchema):
     pass
 
 
-class Post(PostBase):
-    id: int
-    author_id: int
+class BoardSchema(BoardBaseSchema):
+    is_deleted: Optional[bool] = False
     board_id: int
+    creator_id: int
+    posts: Optional[List[PostSchema]] = []
 
     class Config:
         orm_mode = True
