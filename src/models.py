@@ -38,6 +38,7 @@ class Post(Base):
     title = Column(String, index=True, nullable=False)
     content = Column(String)
     created_at = Column(DateTime, nullable=False, default=datetime.now)
+    is_deleted = Column(Boolean, default=False)
     # user - post
     author_id = Column(Integer, ForeignKey("users.id"))
     author = relationship("User", back_populates="posts")

@@ -43,7 +43,7 @@ async def delete_board(
     return BoardService.delete_board(db, board_id, token)
 
 
-@router.get("/get", response_model=List[BoardSchema])
+@router.get("/list", response_model=List[BoardSchema])
 def get_all_accessible_boards(
     db: Session = Depends(get_db), token: str = Depends(UserService.oauth2_scheme)
 ):

@@ -12,10 +12,7 @@ from fastapi import HTTPException, status
 class BoardService:
     @staticmethod
     def create_board(db: Session, name: str, public: bool, token: str):
-        try:
-            user_id = UserService.get_user_id_from_token(token)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="Invalid token")
+        user_id = UserService.get_user_id_from_token(token)
 
         user = UserService.get_user_from_id(db, user_id)
         if not user:
@@ -30,9 +27,13 @@ class BoardService:
             is_public=public,
             creator_id=user_id,
         )
-        db.add(db_board)
-        db.commit()
-        db.refresh(db_board)
+        try:
+            db.add(db_board)
+            db.commit()
+            db.refresh(db_board)
+        except:
+            db.rollback()
+
         return db_board
 
     @staticmethod
@@ -49,8 +50,13 @@ class BoardService:
         board.name = name
         board.is_public = public
 
-        db.commit()
-        db.refresh(board)
+        try:
+            db.commit()
+            db.refresh(board)
+        except:
+            db.rollback()
+        finally:
+            db.close()
 
         return board
 
@@ -65,7 +71,14 @@ class BoardService:
             )
         # Soft delete
         board.is_deleted = True
-        db.commit()
+
+        try:
+            db.commit()
+            db.refresh(board)
+        except:
+            db.rollback()
+        finally:
+            db.close()
 
         return {"message": "Board successfully deleted"}
 
@@ -91,19 +104,24 @@ class BoardService:
     def get_all_accessible_boards(db: Session, token: str):
         user_id = UserService.get_user_id_from_token(token)
 
-        accessible_boards = (
-            db.query(Board)
-            .filter((Board.creator_id == user_id) | (Board.is_public == True))
-            .subquery()
-        )
+        try:
+            accessible_boards = (
+                db.query(Board)
+                .filter((Board.creator_id == user_id) | (Board.is_public == True))
+                .subquery()
+            )
 
-        sorted_boards = (
-            db.query(accessible_boards.c.board_id, func.count(Post.post_id))
-            .join(Post, Post.board_id == accessible_boards.c.board_id)
-            .group_by(accessible_boards.c.board_id)
-            .order_by(desc(func.count(Post.post_id)))
-            .all()
-        )
+            sorted_boards = (
+                db.query(accessible_boards.c.board_id, func.count(Post.post_id))
+                .join(Post, Post.board_id == accessible_boards.c.board_id)
+                .group_by(accessible_boards.c.board_id)
+                .order_by(desc(func.count(Post.post_id)))
+                .all()
+            )
+
+        except Exception as e:
+            print(f"DB Error: {e}")
+            raise HTTPException(status_code=500, detail="DB Server Error")
 
         return sorted_boards
 

@@ -7,6 +7,8 @@ load_dotenv(dotenv_path)
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
+from redis.exceptions import RedisError
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi import HTTPException, status
@@ -35,11 +37,17 @@ class UserService:
 
     @staticmethod
     def get_user_from_email(db: Session, email: str):
-        return db.query(User).filter(User.email == email).first()
+        try:
+            return db.query(User).filter(User.email == email).first()
+        except OperationalError:
+            raise HTTPException(status_code=500, detail="Database connection error")
 
     @staticmethod
     def get_user_from_id(db: Session, user_id: int):
-        return db.query(User).filter(User.id == user_id).first()
+        try:
+            return db.query(User).filter(User.id == user_id).first()
+        except OperationalError:
+            raise HTTPException(status_code=500, detail="Database connection error")
 
     @staticmethod
     def get_user_id_from_token(token: str):
@@ -89,10 +97,15 @@ class UserService:
             to_encode, UserService.SECRET_KEY, algorithm=UserService.ALGORITHM
         )
 
-        redis = await RedisManager.get_connection()
-        await redis.set(
-            data["sub"], encoded_jwt, ex=expires_delta.seconds if expires_delta else 900
-        )
+        try:
+            redis = await RedisManager.get_connection()
+            await redis.set(
+                data["sub"],
+                encoded_jwt,
+                ex=expires_delta.seconds if expires_delta else 900,
+            )
+        except RedisError:
+            raise HTTPException(status_code=500, detail="Failed to connect to Redis")
 
         return encoded_jwt
 
@@ -106,9 +119,13 @@ class UserService:
         db_user = User(
             email=user.email, fullname=user.fullname, hash_password=hashed_password
         )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
+        try:
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+        except:
+            db.rollback()
+
         return db_user
 
     @staticmethod
@@ -145,7 +162,7 @@ class UserService:
             if user_id is None:
                 raise credentials_exception
 
-            user = await UserService.get_user(db, user_id=user_id)
+            user = await UserService.get_user_from_id(db, user_id=user_id)
             if user is None:
                 raise credentials_exception
 
@@ -171,5 +188,7 @@ class UserService:
                 await redis.delete(user.id)
                 return {"detail": "Successfully logged out"}
 
+        except RedisError:
+            raise HTTPException(status_code=500, detail="Failed to connect to Redis")
         except JWTError:
             raise credentials_exception

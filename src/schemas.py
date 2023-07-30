@@ -61,6 +61,7 @@ class PostCreateSchema(PostBaseSchema):
 
 
 class PostSchema(PostBaseSchema):
+    is_deleted: Optional[bool] = False
     post_id: int
     author_id: int
     board_id: int
