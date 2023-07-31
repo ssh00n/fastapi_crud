@@ -6,8 +6,10 @@ load_dotenv(dotenv_path)
 
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import OperationalError
+from sqlalchemy import select
+
 from redis.exceptions import RedisError
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -15,7 +17,7 @@ from fastapi import HTTPException, status
 from models import User
 
 from utils.redis_manager import RedisManager
-from schemas import UserBaseSchema
+from schemas import UserBaseSchema, UserCreateSchema
 
 
 class UserService:
@@ -36,16 +38,21 @@ class UserService:
         return UserService.pwd_context.hash(password)
 
     @staticmethod
-    def get_user_from_email(db: Session, email: str):
+    async def get_user_from_email(db: AsyncSession, email: str):
         try:
-            return db.query(User).filter(User.email == email).first()
+            statement = select(User).where(User.email == email)
+            result = await db.execute(statement)
+            print(result)
+            return result.scalars().first()
         except OperationalError:
             raise HTTPException(status_code=500, detail="Database connection error")
 
     @staticmethod
-    def get_user_from_id(db: Session, user_id: int):
+    async def get_user_from_id(db: AsyncSession, user_id: int):
         try:
-            return db.query(User).filter(User.id == user_id).first()
+            statement = select(User).where(User.id == user_id)
+            result = await db.execute(statement)
+            return result.scalars().first()
         except OperationalError:
             raise HTTPException(status_code=500, detail="Database connection error")
 
@@ -56,7 +63,7 @@ class UserService:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-        print(f"requested_token: {token}")
+        # print(f"requested_token: {token}")
         try:
             payload = jwt.decode(
                 token,
@@ -72,12 +79,12 @@ class UserService:
             print(f"JWTError: {e}")
             raise credentials_exception
         except Exception as e:
-            print(f"Unexpected error: {e}")
+            # print(f"Unexpected error: {e}")
             raise HTTPException(status_code=401, detail="Invalid token")
 
     @staticmethod
-    def authenticate_user(db: Session, email: str, password: str):
-        user = UserService.get_user_from_email(db, email)
+    async def authenticate_user(db: AsyncSession, email: str, password: str):
+        user = await UserService.get_user_from_email(db, email)
         if not user:
             return False
         if not UserService.verify_password(password, user.hash_password):
@@ -110,27 +117,37 @@ class UserService:
         return encoded_jwt
 
     @staticmethod
-    def create_user(db: Session, user: UserBaseSchema):
-        is_present = UserService.get_user_from_email(db, email=user.email)
+    async def create_user(db: AsyncSession, user: UserCreateSchema):
+        print("Creating User.............")
+        is_present = await UserService.get_user_from_email(db, email=user.email)
         if is_present:
             raise HTTPException(status_code=400, detail="Email already exists")
 
+        print(f"is_present: {is_present}")
         hashed_password = UserService.get_password_hash(user.password)
         db_user = User(
             email=user.email, fullname=user.fullname, hash_password=hashed_password
         )
+        print(f"fullname: {db_user.fullname}, email: {db_user.email}")
         try:
             db.add(db_user)
-            db.commit()
-            db.refresh(db_user)
-        except:
-            db.rollback()
+            await db.commit()
+            await db.refresh(db_user)
 
-        return db_user
+            return UserBaseSchema(fullname=db_user.fullname, email=db_user.email)
+        except OperationalError:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Database error")
+
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            raise HTTPException(status_code=501, detail="Unexpected error")
 
     @staticmethod
-    async def login_user(db: Session, form_data: OAuth2PasswordRequestForm):
-        user = UserService.authenticate_user(db, form_data.email, form_data.password)
+    async def login_user(db: AsyncSession, form_data: OAuth2PasswordRequestForm):
+        user = await UserService.authenticate_user(
+            db, form_data.email, form_data.password
+        )
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -148,7 +165,7 @@ class UserService:
         return {"access_token": access_token, "token_type": "bearer"}
 
     @staticmethod
-    async def get_current_user(db: Session, token: str):
+    async def get_current_user(db: AsyncSession, token: str):
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -158,7 +175,7 @@ class UserService:
             payload = jwt.decode(
                 token, UserService.SECRET_KEY, algorithms=[UserService.ALGORITHM]
             )
-            user_id: int = payload.get("sub")
+            user_id: int = int(payload.get("sub"))
             if user_id is None:
                 raise credentials_exception
 
@@ -175,7 +192,7 @@ class UserService:
             raise credentials_exception
 
     @staticmethod
-    async def logout_user(db: Session, token: str):
+    async def logout_user(db: AsyncSession, token: str):
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
