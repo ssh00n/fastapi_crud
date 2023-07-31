@@ -103,7 +103,9 @@ class PostService:
             raise HTTPException(status_code=500, detail="DB error")
 
     @staticmethod
-    async def get_all_accessible_posts(db: AsyncSession, board_id: int, token: str):
+    async def get_all_accessible_posts(
+        db: AsyncSession, board_id: int, token: str, page: int, size: int
+    ):
         user_id = UserService.get_user_id_from_token(token)
         # board = await BoardService.get_board_from_id(db, board_id, token)
 
@@ -112,6 +114,8 @@ class PostService:
                 select(Post)
                 .join(Board, Post.board_id == Board.board_id)
                 .filter(((Board.creator_id == user_id) | (Board.is_public == True)))
+                .limit(size)
+                .offset((page - 1) * size)
             )
             result = await db.execute(statement)
             accessible_posts = result.scalars().fetchall()

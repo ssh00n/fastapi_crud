@@ -52,8 +52,14 @@ async def get_board(
     return await BoardService.get_board_from_id(db, board_id, token)
 
 
+# /list?page=1
+
+
 @router.get("/list", response_model=List[BoardSchema])
 async def get_all_accessible_boards(
-    db: AsyncSession = Depends(get_db), token: str = Depends(UserService.oauth2_scheme)
+    page: int = 1,
+    size: int = 10,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(UserService.oauth2_scheme),
 ):
-    return await BoardService.get_all_accessible_boards(db, token)
+    return await BoardService.get_all_accessible_boards(db, token, page, size)

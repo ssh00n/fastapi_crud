@@ -14,9 +14,7 @@ class BoardService:
     @staticmethod
     async def create_board(db: AsyncSession, name: str, public: bool, token: str):
         user_id = UserService.get_user_id_from_token(token)
-        print(f"user_id: {user_id}")
         user = await UserService.get_user_from_id(db, user_id)
-        print(f"user: {user}")
         if not user:
             raise HTTPException(status_code=400, detail="User does not exist")
 
@@ -29,7 +27,6 @@ class BoardService:
             is_public=public,
             creator_id=user_id,
         )
-        print(f"db_board: {db_board}")
 
         try:
             db.add(db_board)
@@ -47,7 +44,6 @@ class BoardService:
             raise HTTPException(status_code=500, detail="DB Error")
 
         except Exception as e:
-            print("Validation Error!!!!!!!!!!!!!")
             print(e)
 
     @staticmethod
@@ -130,7 +126,9 @@ class BoardService:
             raise HTTPException(status_code=500, detail="Database connection error")
 
     @staticmethod
-    async def get_all_accessible_boards(db: AsyncSession, token: str):
+    async def get_all_accessible_boards(
+        db: AsyncSession, token: str, page: int, size: int
+    ):
         user_id = UserService.get_user_id_from_token(token)
 
         try:
@@ -150,6 +148,8 @@ class BoardService:
                 )
                 .group_by(Board)
                 .order_by(desc(func.count(Post.post_id)))
+                .limit(size)
+                .offset((page - 1) * size)
             )
 
             result = await db.execute(sorted_boards)

@@ -57,7 +57,9 @@ async def get_post_from_id(
 @router.get("/list", response_model=List[PostSchema])
 async def get_all_accessible_posts(
     board_id: int,
+    page: int = 1,
+    size: int = 10,
     db: AsyncSession = Depends(get_db),
     token: str = Depends(UserService.oauth2_scheme),
 ):
-    return await PostService.get_all_accessible_posts(db, board_id, token)
+    return await PostService.get_all_accessible_posts(db, board_id, token, page, size)
