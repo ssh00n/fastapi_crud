@@ -60,6 +60,10 @@ class BoardService:
                 status_code=403, detail="Not allowed to update this board"
             )
 
+        is_present = await BoardService.get_board_from_name(db, name)
+        if is_present:
+            raise HTTPException(status_code=400, detail="Board already exists")
+
         board.name = name
         board.is_public = public
 
