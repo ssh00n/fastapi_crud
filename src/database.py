@@ -1,5 +1,9 @@
 from typing import Callable
+import os
+from dotenv import load_dotenv
 
+dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(dotenv_path)
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -10,13 +14,10 @@ from sqlalchemy.ext.asyncio import (
 
 from sqlalchemy.orm import sessionmaker
 
-
-SQLALCHEMY_DATABASE_URL = (
-    "postgresql+asyncpg://developer:devpassword@localhost:25000/developer"
-)
+SQLALCHEMY_DATABASE_URL = os.getenv("DB_URL")
 
 
-engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True, pool_pre_ping=True)
+engine = create_async_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
 
 session_create: Callable[[], AsyncSession] = async_sessionmaker(
     autocommit=False, autoflush=False, bind=engine

@@ -1,9 +1,10 @@
 from sqlalchemy import desc, select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import func
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas import BoardBaseSchema, BoardCreateSchema, BoardSchema, PostSchema
-from models import User, Board, Post
+from schemas import BoardSchema
+from models import Board, Post
 
 from services.users import UserService
 
@@ -97,24 +98,26 @@ class BoardService:
 
     @staticmethod
     async def get_board_from_id(db: AsyncSession, board_id: int, token: str):
-        statement = select(Board).where(Board.board_id == board_id)
+        statement = (
+            select(Board)
+            .options(joinedload(Board.posts))
+            .where(Board.board_id == board_id)
+        )
         result = await db.execute(statement)
         board = result.scalars().first()
 
         if not board:
             raise HTTPException(status_code=404, detail="Board not found")
 
+        if board.is_deleted:
+            raise HTTPException(status_code=404, detail="Board was deleted")
+
         user_id = UserService.get_user_id_from_token(token)
 
         if board.creator_id != user_id and not board.is_public:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        return BoardSchema(
-            name=board.name,
-            is_public=board.is_public,
-            board_id=board.board_id,
-            creator_id=board.creator_id,
-        )
+        return board
 
     @staticmethod
     async def get_board_from_name(db: AsyncSession, name=str):
@@ -147,6 +150,7 @@ class BoardService:
                     Board.board_id == accessible_boards.c.board_id,
                 )
                 .group_by(Board)
+                .where(Board.is_deleted == False)
                 .order_by(desc(func.count(Post.post_id)))
                 .limit(size)
                 .offset((page - 1) * size)
@@ -169,11 +173,3 @@ class BoardService:
 
         except OperationalError as e:
             raise HTTPException(status_code=500, detail="DB Error")
-
-    @staticmethod
-    def list_board():
-        pass
-
-    @staticmethod
-    def is_creator_board(db: AsyncSession, user_id: int):
-        pass

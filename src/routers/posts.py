@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from database import get_db
-from schemas import PostBaseSchema, PostCreateSchema, PostSchema
+from schemas import PostSchema
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,7 @@ async def update_post(
     return await PostService.update_post(db, post_id, title, content, token)
 
 
-@router.delete("/delete/{board_id}", response_model=dict)
+@router.delete("/delete/{post_id}", response_model=dict)
 async def delete_post(
     post_id: int,
     token: str = Depends(UserService.oauth2_scheme),

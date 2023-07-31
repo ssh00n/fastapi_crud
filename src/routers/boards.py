@@ -4,9 +4,8 @@ from database import get_db
 from services.users import UserService
 from services.boards import BoardService
 
-from schemas import BoardBaseSchema, BoardCreateSchema, BoardSchema
+from schemas import BoardBaseSchema, BoardSchema
 from typing import List
-from models import User
 
 router = APIRouter(
     prefix="/boards",
@@ -49,7 +48,14 @@ async def get_board(
     token: str = Depends(UserService.oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    return await BoardService.get_board_from_id(db, board_id, token)
+    board = await BoardService.get_board_from_id(db, board_id, token)
+
+    return BoardSchema(
+        name=board.name,
+        is_public=board.is_public,
+        board_id=board.board_id,
+        creator_id=board.creator_id,
+    )
 
 
 # /list?page=1

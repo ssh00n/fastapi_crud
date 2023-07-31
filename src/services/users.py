@@ -42,7 +42,7 @@ class UserService:
         try:
             statement = select(User).where(User.email == email)
             result = await db.execute(statement)
-            print(result)
+
             return result.scalars().first()
         except OperationalError:
             raise HTTPException(status_code=500, detail="Database connection error")
@@ -63,7 +63,6 @@ class UserService:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-        # print(f"requested_token: {token}")
         try:
             payload = jwt.decode(
                 token,
@@ -72,7 +71,6 @@ class UserService:
                 # options={"verify_signature": False}, # for debugging
             )
             user_id = int(payload.get("sub"))
-            print(f"user_id: {user_id}")
             return user_id
 
         except JWTError as e:
@@ -118,17 +116,14 @@ class UserService:
 
     @staticmethod
     async def create_user(db: AsyncSession, user: UserCreateSchema):
-        print("Creating User.............")
         is_present = await UserService.get_user_from_email(db, email=user.email)
         if is_present:
             raise HTTPException(status_code=400, detail="Email already exists")
 
-        print(f"is_present: {is_present}")
         hashed_password = UserService.get_password_hash(user.password)
         db_user = User(
             email=user.email, fullname=user.fullname, hash_password=hashed_password
         )
-        print(f"fullname: {db_user.fullname}, email: {db_user.email}")
         try:
             db.add(db_user)
             await db.commit()
