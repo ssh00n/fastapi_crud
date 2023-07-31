@@ -16,6 +16,11 @@ async def startup_event():
     await init_db(engine)
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    await engine.dispose()
+
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
