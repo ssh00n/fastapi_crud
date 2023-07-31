@@ -2,6 +2,8 @@ from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
 from datetime import datetime
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+
+# from sqlalchemy.ext.asyncio import AsyncEngine
 from database import engine
 
 Base = declarative_base()
@@ -47,4 +49,6 @@ class Post(Base):
     board = relationship("Board", back_populates="posts")
 
 
-Base.metadata.create_all(bind=engine)
+async def init_db(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
