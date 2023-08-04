@@ -1,1 +1,0 @@
-# elice_backend
